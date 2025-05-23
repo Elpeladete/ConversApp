@@ -1,0 +1,512 @@
+<!-- Modal para nueva plantilla -->
+<div class="modal fade" id="templateModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Nueva plantilla</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="templateForm">
+          <div class="mb-3">
+            <label for="templateName" class="form-label">Nombre de la plantilla</label>
+            <input type="text" class="form-control" id="templateName" required>
+          </div>
+          
+          <div class="mb-3">
+            <label for="templateChannel" class="form-label">Canal</label>
+            <select class="form-select" id="templateChannel" required>
+              <option value="">Selecciona un canal</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="sms">SMS</option>
+              <option value="email">Email</option>
+            </select>
+          </div>
+          
+          <div class="mb-3">
+            <label for="templateContent" class="form-label">Contenido</label>
+            <textarea class="form-control" id="templateContent" rows="4" required 
+              placeholder="Escribe el contenido de tu plantilla. Usa {{1}}, {{2}}, etc. para variables."></textarea>
+            <div class="form-text">Usa {{1}} para la primera variable, {{2}} para la segunda, etc.</div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Variables</label>
+            <div id="variablesContainer">
+              <div class="input-group mb-2">
+                <span class="input-group-text">{{1}}:</span>
+                <input type="text" class="form-control" placeholder="nombre" name="variable">
+                <button class="btn btn-outline-danger" type="button" onclick="removeVariable(this)">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="addVariable()">
+              <i class="fas fa-plus me-1"></i>Añadir variable
+            </button>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" onclick="saveTemplate()">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para nuevo canal -->
+<div class="modal fade" id="channelModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Añadir nuevo canal</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="channelTypeSelection">
+          <p>Selecciona el tipo de canal que deseas conectar:</p>
+          <div class="row text-center">
+            <div class="col-4">
+              <button class="btn btn-outline-success w-100 h-100 py-4" onclick="selectChannelType('whatsapp')">
+                <i class="fab fa-whatsapp fa-3x mb-2"></i>
+                <br>WhatsApp
+              </button>
+            </div>
+            <div class="col-4">
+              <button class="btn btn-outline-primary w-100 h-100 py-4" onclick="selectChannelType('sms')">
+                <i class="fas fa-sms fa-3x mb-2"></i>
+                <br>SMS
+              </button>
+            </div>
+            <div class="col-4">
+              <button class="btn btn-outline-secondary w-100 h-100 py-4" onclick="selectChannelType('email')">
+                <i class="fas fa-envelope fa-3x mb-2"></i>
+                <br>Email
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div id="channelConfiguration" style="display: none;">
+          <form id="channelForm">
+            <div class="mb-3">
+              <label for="channelName" class="form-label">Nombre del canal</label>
+              <input type="text" class="form-control" id="channelName" required>
+            </div>
+            
+            <div id="whatsappConfig" style="display: none;">
+              <div class="mb-3">
+                <label for="whatsappPhone" class="form-label">Número de teléfono</label>
+                <input type="tel" class="form-control" id="whatsappPhone" placeholder="+34 600 000 000">
+              </div>
+              <div class="alert alert-info">
+                <h6><i class="fas fa-info-circle me-2"></i>Conexión con Wazzup</h6>
+                <p class="mb-2">Para conectar WhatsApp, necesitarás autorizar la integración con Wazzup.</p>
+                <button type="button" class="btn btn-outline-primary btn-sm">
+                  <i class="fas fa-external-link-alt me-1"></i>Conectar con Wazzup
+                </button>
+              </div>
+            </div>
+            
+            <div id="smsConfig" style="display: none;">
+              <div class="mb-3">
+                <label for="smsPhone" class="form-label">Número de SMS</label>
+                <input type="tel" class="form-control" id="smsPhone" placeholder="+34 600 000 000">
+              </div>
+            </div>
+            
+            <div id="emailConfig" style="display: none;">
+              <div class="mb-3">
+                <label for="emailAddress" class="form-label">Dirección de email</label>
+                <input type="email" class="form-control" id="emailAddress" placeholder="soporte@empresa.com">
+              </div>
+              <div class="mb-3">
+                <label for="smtpServer" class="form-label">Servidor SMTP</label>
+                <input type="text" class="form-control" id="smtpServer" placeholder="smtp.empresa.com">
+              </div>
+            </div>
+          </form>
+          
+          <div class="d-flex justify-content-between">
+            <button type="button" class="btn btn-outline-secondary" onclick="backToChannelSelection()">
+              <i class="fas fa-arrow-left me-1"></i>Atrás
+            </button>
+            <button type="button" class="btn btn-primary" onclick="saveChannel()">Guardar</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" id="channelModalFooter">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para nueva automatización -->
+<div class="modal fade" id="automationModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Nueva automatización</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="automationStep1">
+          <h6>Paso 1: Información básica</h6>
+          <form id="automationForm">
+            <div class="mb-3">
+              <label for="automationName" class="form-label">Nombre de la automatización</label>
+              <input type="text" class="form-control" id="automationName" required>
+            </div>
+            
+            <div class="mb-3">
+              <label for="automationDescription" class="form-label">Descripción (opcional)</label>
+              <input type="text" class="form-control" id="automationDescription" 
+                placeholder="Describe brevemente qué hace esta automatización">
+            </div>
+            
+            <div class="mb-3">
+              <label for="automationTrigger" class="form-label">¿Cuándo debe activarse?</label>
+              <select class="form-select" id="automationTrigger" required onchange="showTriggerOptions()">
+                <option value="">Selecciona un disparador</option>
+                <option value="first-message">Cuando se recibe el primer mensaje</option>
+                <option value="keyword">Cuando el mensaje contiene palabras clave</option>
+                <option value="no-response">Cuando no hay respuesta por X tiempo</option>
+                <option value="tag-added">Cuando se añade una etiqueta</option>
+              </select>
+            </div>
+            
+            <div id="triggerOptions" style="display: none;">
+              <div id="keywordOptions" style="display: none;">
+                <div class="mb-3">
+                  <label for="keywords" class="form-label">Palabras clave (separadas por comas)</label>
+                  <input type="text" class="form-control" id="keywords" placeholder="Ej: presupuesto, precio, costo">
+                </div>
+              </div>
+              
+              <div id="timeOptions" style="display: none;">
+                <div class="mb-3">
+                  <label for="timeHours" class="form-label">Tiempo de espera (horas)</label>
+                  <input type="number" class="form-control" id="timeHours" min="1" placeholder="24">
+                </div>
+              </div>
+              
+              <div id="tagOptions" style="display: none;">
+                <div class="mb-3">
+                  <label for="tagSelect" class="form-label">Etiqueta</label>
+                  <select class="form-select" id="tagSelect">
+                    <option value="">Selecciona una etiqueta</option>
+                    <option value="lead">Potencial cliente</option>
+                    <option value="support">Soporte</option>
+                    <option value="urgent">Urgente</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+        
+        <div id="automationStep2" style="display: none;">
+          <h6>Paso 2: Acciones a realizar</h6>
+          <ul class="nav nav-tabs" id="actionTabs">
+            <li class="nav-item">
+              <a class="nav-link active" data-bs-toggle="tab" href="#messageAction">Mensaje</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" data-bs-toggle="tab" href="#tagAction">Etiqueta</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" data-bs-toggle="tab" href="#odooAction">Odoo</a>
+            </li>
+          </ul>
+          
+          <div class="tab-content mt-3">
+            <div class="tab-pane fade show active" id="messageAction">
+              <div class="mb-3">
+                <label for="templateSelect" class="form-label">Selecciona una plantilla</label>
+                <select class="form-select" id="templateSelect">
+                  <option value="">Selecciona una plantilla</option>
+                  <option value="welcome">Bienvenida</option>
+                  <option value="follow-up">Seguimiento</option>
+                  <option value="thanks">Agradecimiento</option>
+                </select>
+              </div>
+              
+              <div class="mb-3">
+                <label for="delay" class="form-label">Retraso (minutos)</label>
+                <input type="number" class="form-control" id="delay" min="0" placeholder="0">
+                <div class="form-text">Deja en 0 para enviar inmediatamente</div>
+              </div>
+            </div>
+            
+            <div class="tab-pane fade" id="tagAction">
+              <div class="mb-3">
+                <label for="tagActionType" class="form-label">Acción</label>
+                <select class="form-select" id="tagActionType">
+                  <option value="">Selecciona una acción</option>
+                  <option value="add">Añadir etiqueta</option>
+                  <option value="remove">Eliminar etiqueta</option>
+                </select>
+              </div>
+              
+              <div class="mb-3">
+                <label for="tagActionSelect" class="form-label">Etiqueta</label>
+                <select class="form-select" id="tagActionSelect">
+                  <option value="">Selecciona una etiqueta</option>
+                  <option value="lead">Potencial cliente</option>
+                  <option value="support">Soporte</option>
+                  <option value="urgent">Urgente</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="tab-pane fade" id="odooAction">
+              <div class="mb-3">
+                <label for="odooActionType" class="form-label">Acción en Odoo</label>
+                <select class="form-select" id="odooActionType">
+                  <option value="">Selecciona una acción</option>
+                  <option value="create-lead">Crear oportunidad</option>
+                  <option value="create-task">Crear tarea</option>
+                  <option value="update-partner">Actualizar contacto</option>
+                </select>
+              </div>
+              
+              <div class="mb-3">
+                <label for="odooAssignee" class="form-label">Asignar a</label>
+                <select class="form-select" id="odooAssignee">
+                  <option value="">Selecciona un usuario o equipo</option>
+                  <option value="sales-team">Equipo de ventas</option>
+                  <option value="support-team">Equipo de soporte</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </div>
+              
+              <div class="mb-3">
+                <label for="odooPriority" class="form-label">Prioridad</label>
+                <select class="form-select" id="odooPriority">
+                  <option value="">Selecciona la prioridad</option>
+                  <option value="low">Baja</option>
+                  <option value="normal">Normal</option>
+                  <option value="high">Alta</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <button type="button" class="btn btn-outline-primary btn-sm mt-2">
+            <i class="fas fa-plus me-1"></i>Añadir otra acción
+          </button>
+        </div>
+        
+        <div id="automationStep3" style="display: none;">
+          <h6>Paso 3: Resumen</h6>
+          <div class="card">
+            <div class="card-body">
+              <div class="mb-3">
+                <small class="text-muted">Nombre</small>
+                <p class="fw-bold" id="summaryName">-</p>
+              </div>
+              
+              <div class="mb-3">
+                <small class="text-muted">Se activa cuando</small>
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-play-circle text-primary me-2"></i>
+                  <span id="summaryTrigger">-</span>
+                </div>
+              </div>
+              
+              <div class="mb-3">
+                <small class="text-muted">Acciones</small>
+                <div id="summaryActions">
+                  <!-- Las acciones se mostrarán aquí -->
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-check mt-3">
+            <input class="form-check-input" type="checkbox" id="activateAutomation" checked>
+            <label class="form-check-label" for="activateAutomation">
+              Activar automatización inmediatamente
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-outline-secondary" id="prevStepBtn" onclick="prevAutomationStep()" style="display: none;">
+          <i class="fas fa-arrow-left me-1"></i>Atrás
+        </button>
+        <button type="button" class="btn btn-primary" id="nextStepBtn" onclick="nextAutomationStep()">
+          Siguiente <i class="fas fa-arrow-right ms-1"></i>
+        </button>
+        <button type="button" class="btn btn-primary" id="saveAutomationBtn" onclick="saveAutomation()" style="display: none;">
+          Crear automatización
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para nueva integración -->
+<div class="modal fade" id="integrationModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Nueva integración</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <ul class="nav nav-tabs" id="integrationTabs">
+          <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#odooIntegration">Odoo</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#wazzupIntegration">Wazzup</a>
+          </li>
+        </ul>
+        
+        <div class="tab-content mt-3">
+          <div class="tab-pane fade show active" id="odooIntegration">
+            <form id="odooForm">
+              <div class="mb-3">
+                <label for="odooUrl" class="form-label">URL de Odoo</label>
+                <input type="url" class="form-control" id="odooUrl" placeholder="https://empresa.odoo.com" required>
+              </div>
+              
+              <div class="mb-3">
+                <label for="odooDb" class="form-label">Base de datos</label>
+                <input type="text" class="form-control" id="odooDb" placeholder="nombre_bd" required>
+              </div>
+              
+              <div class="mb-3">
+                <label for="odooUsername" class="form-label">Usuario</label>
+                <input type="text" class="form-control" id="odooUsername" placeholder="admin" required>
+              </div>
+              
+              <div class="mb-3">
+                <label for="odooPassword" class="form-label">Contraseña</label>
+                <input type="password" class="form-control" id="odooPassword" placeholder="••••••••••••••••" required>
+              </div>
+              
+              <div class="alert alert-info">
+                <h6><i class="fas fa-info-circle me-2"></i>Configuración en Odoo</h6>
+                <p class="mb-2">Para conectar con Odoo, necesitas un usuario con permisos suficientes para acceder a la API.</p>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="testOdooConnection()">
+                  <i class="fas fa-plug me-1"></i>Probar conexión
+                </button>
+              </div>
+            </form>
+          </div>
+          
+          <div class="tab-pane fade" id="wazzupIntegration">
+            <form id="wazzupForm">
+              <div class="mb-3">
+                <label for="wazzupApiKey" class="form-label">Clave API de Wazzup</label>
+                <input type="password" class="form-control" id="wazzupApiKey" placeholder="••••••••••••••••" required>
+              </div>
+              
+              <div class="mb-3">
+                <label for="wazzupChannelId" class="form-label">ID del canal</label>
+                <input type="text" class="form-control" id="wazzupChannelId" placeholder="12345" required>
+              </div>
+              
+              <div class="alert alert-info">
+                <h6><i class="fas fa-info-circle me-2"></i>Configuración en Wazzup</h6>
+                <p class="mb-2">Para obtener la clave API y el ID del canal, accede a tu cuenta de Wazzup y ve a la sección de Integraciones.</p>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="testWazzupConnection()">
+                  <i class="fas fa-plug me-1"></i>Probar conexión
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" onclick="saveIntegration()">Conectar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para ver plantilla -->
+<div class="modal fade" id="viewTemplateModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="viewTemplateTitle">Plantilla</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="templatePreview">
+          <!-- El contenido de la plantilla se mostrará aquí -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-primary" onclick="useTemplate()">Usar plantilla</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para historial de transferencias -->
+<div class="modal fade" id="transferHistoryModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Historial de transferencias</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="transferHistoryContent">
+          <!-- El historial se cargará aquí -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para configuración inicial -->
+<div class="modal fade" id="setupModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Configuración inicial</h5>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <h6><i class="fas fa-info-circle me-2"></i>Configuración requerida</h6>
+          <p>Para usar la plataforma, necesitas configurar al menos un Google Spreadsheet para almacenar los datos.</p>
+        </div>
+        
+        <form id="setupForm">
+          <div class="mb-3">
+            <label for="spreadsheetId" class="form-label">ID del Google Spreadsheet</label>
+            <input type="text" class="form-control" id="spreadsheetId" required 
+              placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms">
+            <div class="form-text">
+              Crea un nuevo Google Spreadsheet y copia su ID desde la URL
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <button type="button" class="btn btn-outline-primary" onclick="createSampleSpreadsheet()">
+              <i class="fas fa-plus me-1"></i>Crear spreadsheet automáticamente
+            </button>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" onclick="saveInitialSetup()">
+          Guardar configuración
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

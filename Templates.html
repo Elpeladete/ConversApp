@@ -1,0 +1,342 @@
+<script id="inboxTemplate" type="text/template">
+  <div class="d-flex h-100">
+    <!-- Chat List -->
+    <div class="chat-list bg-white custom-scrollbar overflow-auto">
+      <div class="p-3 border-bottom">
+        <div class="input-group mb-3">
+          <span class="input-group-text">
+            <i class="fas fa-search"></i>
+          </span>
+          <input type="text" class="form-control" placeholder="Buscar conversaciones..." id="searchChats">
+        </div>
+        
+        <div class="d-flex gap-2">
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+              <i class="fas fa-filter me-1"></i>Filtrar
+            </button>
+            <ul class="dropdown-menu">
+              <li><h6 class="dropdown-header">Canales</h6></li>
+              <li><a class="dropdown-item" href="#" data-filter="whatsapp">
+                <i class="fab fa-whatsapp text-success me-2"></i>WhatsApp
+              </a></li>
+              <li><a class="dropdown-item" href="#" data-filter="sms">
+                <i class="fas fa-sms text-primary me-2"></i>SMS
+              </a></li>
+              <li><a class="dropdown-item" href="#" data-filter="email">
+                <i class="fas fa-envelope text-secondary me-2"></i>Email
+              </a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><h6 class="dropdown-header">Estado</h6></li>
+              <li><a class="dropdown-item" href="#" data-filter="unread">No leídos</a></li>
+              <li><a class="dropdown-item" href="#" data-filter="assigned">Asignados a mí</a></li>
+            </ul>
+          </div>
+          <button class="btn btn-outline-secondary btn-sm" id="clearFilters">Limpiar</button>
+        </div>
+      </div>
+      
+      <div id="chatsList" class="custom-scrollbar overflow-auto">
+        <!-- Los chats se cargarán aquí dinámicamente -->
+      </div>
+    </div>
+
+    <!-- Message Panel -->
+    <div class="flex-grow-1 d-flex flex-column">
+      <div id="messagePanel" class="h-100">
+        <div class="empty-state">
+          <i class="fas fa-comments"></i>
+          <h5>Selecciona una conversación</h5>
+          <p>Elige un chat de la lista para ver los mensajes</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</script>
+
+<script id="chatItemTemplate" type="text/template">
+  <div class="chat-item" data-chat-id="{{id}}">
+    <div class="d-flex">
+      <div class="chat-avatar me-3">
+        {{initials}}
+      </div>
+      <div class="flex-grow-1 min-w-0">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <div class="d-flex align-items-center">
+            <h6 class="mb-0 text-truncate me-2">{{name}}</h6>
+            <span class="channel-badge channel-{{channel}}">
+              <i class="{{channelIcon}}"></i>
+              <span class="d-none d-sm-inline ms-1">{{channelName}}</span>
+            </span>
+          </div>
+          <small class="text-muted">{{time}}</small>
+        </div>
+        <div class="d-flex justify-content-between align-items-center">
+          <p class="mb-0 text-muted text-truncate">{{lastMessage}}</p>
+          {{#if unreadCount}}
+          <span class="unread-badge ms-2">{{unreadCount}}</span>
+          {{/if}}
+        </div>
+      </div>
+    </div>
+  </div>
+</script>
+
+<script id="messagePanelTemplate" type="text/template">
+  <!-- Chat Header -->
+  <div class="border-bottom p-3 bg-white">
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center">
+        <div class="chat-avatar me-3">{{initials}}</div>
+        <div>
+          <h6 class="mb-0">{{name}}</h6>
+          <small class="text-muted">{{phone}} • {{email}}</small>
+        </div>
+        <span class="channel-badge channel-{{channel}} ms-2">
+          <i class="{{channelIcon}}"></i>
+          <span class="ms-1">{{channelName}}</span>
+        </span>
+      </div>
+      
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" title="Llamar">
+          <i class="fas fa-phone"></i>
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" title="Videollamada">
+          <i class="fas fa-video"></i>
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" title="Información del contacto">
+          <i class="fas fa-info-circle"></i>
+        </button>
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <i class="fas fa-ellipsis-v"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="#"><i class="fas fa-user me-2"></i>Ver información</a></li>
+            <li><a class="dropdown-item" href="#"><i class="fas fa-tags me-2"></i>Asignar etiquetas</a></li>
+            <li><a class="dropdown-item" href="#"><i class="fas fa-share me-2"></i>Transferir</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="#"><i class="fas fa-ban me-2"></i>Bloquear</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Messages Area -->
+  <div class="messages-container flex-grow-1 p-3 custom-scrollbar overflow-auto" id="messagesContainer">
+    <!-- Los mensajes se cargarán aquí -->
+  </div>
+
+  <!-- Message Input -->
+  <div class="message-input-container">
+    <div class="d-flex align-items-end gap-2">
+      <button class="btn btn-outline-secondary" type="button" title="Adjuntar archivo">
+        <i class="fas fa-paperclip"></i>
+      </button>
+      
+      <div class="flex-grow-1">
+        <textarea 
+          class="form-control message-input" 
+          placeholder="Escribe un mensaje..." 
+          rows="1" 
+          id="messageInput"
+        ></textarea>
+      </div>
+      
+      <div class="dropdown">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" title="Plantillas">
+          <i class="fas fa-file-text"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" id="templatesDropdown">
+          <!-- Las plantillas se cargarán aquí -->
+        </ul>
+      </div>
+      
+      <button class="btn btn-primary" type="button" id="sendMessage">
+        <i class="fas fa-paper-plane"></i>
+      </button>
+    </div>
+  </div>
+</script>
+
+<script id="messageTemplate" type="text/template">
+  <div class="message-bubble {{type}} p-3">
+    <div class="message-content">{{content}}</div>
+    <div class="message-time d-flex align-items-center justify-content-end">
+      <span>{{time}}</span>
+      {{#if status}}
+      <span class="message-status">
+        {{#if (eq status 'sending')}}
+          <i class="fas fa-clock text-muted"></i>
+        {{else if (eq status 'sent')}}
+          <i class="fas fa-check text-muted"></i>
+        {{else if (eq status 'delivered')}}
+          <i class="fas fa-check-double text-muted"></i>
+        {{else if (eq status 'read')}}
+          <i class="fas fa-check-double text-primary"></i>
+        {{/if}}
+      </span>
+      {{/if}}
+    </div>
+  </div>
+</script>
+
+<script id="templatesPageTemplate" type="text/template">
+  <div class="container-fluid p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2>Plantillas de mensajes</h2>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#templateModal">
+        <i class="fas fa-plus me-2"></i>Nueva plantilla
+      </button>
+    </div>
+    
+    <div class="row" id="templatesGrid">
+      <!-- Las plantillas se cargarán aquí -->
+    </div>
+  </div>
+</script>
+
+<script id="templateCardTemplate" type="text/template">
+  <div class="col-md-6 col-lg-4 mb-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">{{name}}</h6>
+        <span class="channel-badge channel-{{channel}}">
+          <i class="{{channelIcon}}"></i>
+          <span class="ms-1">{{channelName}}</span>
+        </span>
+      </div>
+      <div class="card-body">
+        <p class="card-text text-truncate-2">{{content}}</p>
+        {{#if variables}}
+        <div class="mt-2">
+          <small class="text-muted">Variables:</small>
+          <div class="d-flex flex-wrap gap-1 mt-1">
+            {{#each variables}}
+            <span class="badge bg-light text-dark">{{@index}}: {{this}}</span>
+            {{/each}}
+          </div>
+        </div>
+        {{/if}}
+      </div>
+      <div class="card-footer d-flex justify-content-between">
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-secondary" onclick="viewTemplate('{{id}}')">
+            <i class="fas fa-eye"></i>
+          </button>
+          <button class="btn btn-outline-secondary" onclick="editTemplate('{{id}}')">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button class="btn btn-outline-secondary" onclick="duplicateTemplate('{{id}}')">
+            <i class="fas fa-copy"></i>
+          </button>
+        </div>
+        <button class="btn btn-outline-danger btn-sm" onclick="deleteTemplate('{{id}}')">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</script>
+
+<script id="channelsPageTemplate" type="text/template">
+  <div class="container-fluid p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2>Canales conectados</h2>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#channelModal">
+        <i class="fas fa-plus me-2"></i>Añadir canal
+      </button>
+    </div>
+    
+    <div class="row" id="channelsGrid">
+      <!-- Los canales se cargarán aquí -->
+    </div>
+  </div>
+</script>
+
+<script id="automationsPageTemplate" type="text/template">
+  <div class="container-fluid p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2>Automatizaciones</h2>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#automationModal">
+        <i class="fas fa-plus me-2"></i>Nueva automatización
+      </button>
+    </div>
+    
+    <div class="row" id="automationsGrid">
+      <!-- Las automatizaciones se cargarán aquí -->
+    </div>
+  </div>
+</script>
+
+<script id="integrationsPageTemplate" type="text/template">
+  <div class="container-fluid p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2>Integraciones</h2>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#integrationModal">
+        <i class="fas fa-plus me-2"></i>Nueva integración
+      </button>
+    </div>
+    
+    <div class="row" id="integrationsGrid">
+      <!-- Las integraciones se cargarán aquí -->
+    </div>
+    
+    <!-- Mapeo de datos con Odoo -->
+    <div class="mt-5" id="odooMapping" style="display: none;">
+      <h3>Mapeo de datos con Odoo</h3>
+      <ul class="nav nav-tabs" id="mappingTabs">
+        <li class="nav-item">
+          <a class="nav-link active" data-bs-toggle="tab" href="#contactsMapping">
+            <i class="fas fa-users me-2"></i>Contactos
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="tab" href="#leadsMapping">
+            <i class="fas fa-handshake me-2"></i>Oportunidades
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="tab" href="#tasksMapping">
+            <i class="fas fa-tasks me-2"></i>Tareas
+          </a>
+        </li>
+      </ul>
+      
+      <div class="tab-content mt-3">
+        <div class="tab-pane fade show active" id="contactsMapping">
+          <div class="card">
+            <div class="card-body">
+              <h5>Mapeo de contactos (res.partner)</h5>
+              <div class="row">
+                <div class="col-md-6">
+                  <h6>Campo en la plataforma</h6>
+                  <ul class="list-group">
+                    <li class="list-group-item">Nombre</li>
+                    <li class="list-group-item">Número de teléfono</li>
+                    <li class="list-group-item">Email</li>
+                    <li class="list-group-item">Etiquetas</li>
+                    <li class="list-group-item">Último mensaje</li>
+                  </ul>
+                </div>
+                <div class="col-md-6">
+                  <h6>Campo en Odoo</h6>
+                  <ul class="list-group">
+                    <li class="list-group-item">name</li>
+                    <li class="list-group-item">mobile</li>
+                    <li class="list-group-item">email</li>
+                    <li class="list-group-item">category_id</li>
+                    <li class="list-group-item">comment</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Más tabs de mapeo... -->
+      </div>
+    </div>
+  </div>
+</script>

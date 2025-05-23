@@ -1,0 +1,1038 @@
+<script>
+// Aplicación principal
+const App = {
+  currentPage: 'inbox',
+  currentConversation: null,
+  conversations: [],
+  messages: [],
+  templates: [],
+  agents: [],
+  
+  // Inicializar aplicación
+  init: function(page = 'inbox') {
+    this.currentPage = page;
+    this.setupEventListeners();
+    this.loadPage(page);
+    this.checkInitialSetup();
+  },
+  
+  // Verificar configuración inicial
+  checkInitialSetup: function() {
+    google.script.run
+      .withSuccessHandler((config) => {
+        if (!config.SPREADSHEET_ID) {
+          const setupModal = new bootstrap.Modal(document.getElementById('setupModal'));
+          setupModal.show();
+        }
+      })
+      .withFailureHandler((error) => {
+        console.error('Error al verificar configuración:', error);
+      })
+      .getConfiguration();
+  },
+  
+  // Configurar event listeners
+  setupEventListeners: function() {
+    // Navegación del sidebar
+    document.querySelectorAll('[data-page]').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const page = e.currentTarget.dataset.page;
+        this.loadPage(page);
+      });
+    });
+    
+    // Toggle sidebar en móvil
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    if (sidebarToggle) {
+      sidebarToggle.addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('show');
+      });
+    }
+    
+    // Auto-resize textarea
+    document.addEventListener('input', (e) => {
+      if (e.target.classList.contains('message-input')) {
+        this.autoResizeTextarea(e.target);
+      }
+    });
+    
+    // Enviar mensaje con Enter
+    document.addEventListener('keydown', (e) => {
+      if (e.target.id === 'messageInput' && e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        this.sendMessage();
+      }
+    });
+  },
+  
+  // Cargar página
+  loadPage: function(page) {
+    this.showLoading(true);
+    this.updateActiveNavigation(page);
+    this.updatePageTitle(page);
+    
+    switch (page) {
+      case 'inbox':
+        this.loadInbox();
+        break;
+      case 'channels':
+        this.loadChannels();
+        break;
+      case 'templates':
+        this.loadTemplates();
+        break;
+      case 'automations':
+        this.loadAutomations();
+        break;
+      case 'reports':
+        this.loadReports();
+        break;
+      case 'integrations':
+        this.loadIntegrations();
+        break;
+      default:
+        this.loadInbox();
+    }
+    
+    this.currentPage = page;
+  },
+  
+  // Actualizar navegación activa
+  updateActiveNavigation: function(page) {
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.classList.remove('active');
+    });
+    
+    const activeLink = document.querySelector(`[data-page="${page}"]`);
+    if (activeLink) {
+      activeLink.classList.add('active');
+    }
+  },
+  
+  // Actualizar título de página
+  updatePageTitle: function(page) {
+    const titles = {
+      'inbox': 'Bandeja de entrada',
+      'channels': 'Canales conectados',
+      'templates': 'Plantillas de mensajes',
+      'automations': 'Automatizaciones',
+      'reports': 'Informes',
+      'integrations': 'Integraciones'
+    };
+    
+    const titleElement = document.getElementById('pageTitle');
+    if (titleElement) {
+      titleElement.textContent = titles[page] || 'MultiChat';
+    }
+  },
+  
+  // Mostrar/ocultar loading
+  showLoading: function(show) {
+    const spinner = document.getElementById('loadingSpinner');
+    if (spinner) {
+      spinner.classList.toggle('d-none', !show);
+    }
+  },
+  
+  // Cargar bandeja de entrada
+  loadInbox: function() {
+    const template = document.getElementById('inboxTemplate').innerHTML;
+    document.getElementById('pageContainer').innerHTML = template;
+    
+    // Cargar conversaciones
+    google.script.run
+      .withSuccessHandler((conversations) => {
+        this.conversations = conversations;
+        this.renderConversations(conversations);
+        this.showLoading(false);
+      })
+      .withFailureHandler((error) => {
+        console.error('Error al cargar conversaciones:', error);
+        this.showError('Error al cargar conversaciones');
+        this.showLoading(false);
+      })
+      .getConversations();
+    
+    // Configurar búsqueda
+    this.setupSearch();
+    
+    // Configurar filtros
+    this.setupFilters();
+  },
+  
+  // Renderizar lista de conversaciones
+  renderConversations: function(conversations) {
+    const chatsList = document.getElementById('chatsList');
+    const template = document.getElementById('chatItemTemplate').innerHTML;
+    
+    if (conversations.length === 0) {
+      chatsList.innerHTML = `
+        <div class="empty-state">
+          <i class="fas fa-inbox"></i>
+          <h6>No hay conversaciones</h6>
+          <p>Las nuevas conversaciones aparecerán aquí</p>
+        </div>
+      `;
+      return;
+    }
+    
+    chatsList.innerHTML = conversations.map(conv => {
+      return this.renderTemplate(template, {
+        id: conv.id,
+        name: conv.name,
+        initials: this.getInitials(conv.name),
+        channel: conv.channel,
+        channelIcon: this.getChannelIcon(conv.channel),
+        channelName: this.getChannelName(conv.channel),
+        lastMessage: conv.lastMessage,
+        time: this.formatTime(conv.lastMessageTime),
+        unreadCount: conv.unreadCount > 0 ? conv.unreadCount : null
+      });
+    }).join('');
+    
+    // Configurar clicks en conversaciones
+    this.setupConversationClicks();
+  },
+  
+  // Configurar clicks en conversaciones
+  setupConversationClicks: function() {
+    document.querySelectorAll('.chat-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const conversationId = item.dataset.chatId;
+        this.selectConversation(conversationId);
+      });
+    });
+  },
+  
+  // Seleccionar conversación
+  selectConversation: function(conversationId) {
+    // Actualizar UI
+    document.querySelectorAll('.chat-item').forEach(item => {
+      item.classList.remove('active');
+    });
+    
+    const selectedItem = document.querySelector(`[data-chat-id="${conversationId}"]`);
+    if (selectedItem) {
+      selectedItem.classList.add('active');
+    }
+    
+    // Cargar mensajes
+    this.loadConversationMessages(conversationId);
+    this.currentConversation = conversationId;
+  },
+  
+  // Cargar mensajes de conversación
+  loadConversationMessages: function(conversationId) {
+    google.script.run
+      .withSuccessHandler((data) => {
+        this.renderMessagePanel(data.conversation, data.messages);
+        this.setupMessageInput();
+      })
+      .withFailureHandler((error) => {
+        console.error('Error al cargar mensajes:', error);
+        this.showError('Error al cargar mensajes');
+      })
+      .getConversationData(conversationId);
+  },
+  
+  // Renderizar panel de mensajes
+  renderMessagePanel: function(conversation, messages) {
+    const template = document.getElementById('messagePanelTemplate').innerHTML;
+    const messagePanel = document.getElementById('messagePanel');
+    
+    const html = this.renderTemplate(template, {
+      id: conversation.id,
+      name: conversation.name,
+      initials: this.getInitials(conversation.name),
+      phone: conversation.phone,
+      email: conversation.email,
+      channel: conversation.channel,
+      channelIcon: this.getChannelIcon(conversation.channel),
+      channelName: this.getChannelName(conversation.channel)
+    });
+    
+    messagePanel.innerHTML = html;
+    
+    // Renderizar mensajes
+    this.renderMessages(messages);
+    
+    // Cargar plantillas en dropdown
+    this.loadTemplatesDropdown();
+  },
+  
+  // Renderizar mensajes
+  renderMessages: function(messages) {
+    const container = document.getElementById('messagesContainer');
+    const template = document.getElementById('messageTemplate').innerHTML;
+    
+    if (messages.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <i class="fas fa-comment"></i>
+          <h6>No hay mensajes</h6>
+          <p>Inicia la conversación enviando un mensaje</p>
+        </div>
+      `;
+      return;
+    }
+    
+    container.innerHTML = messages.map(msg => {
+      const type = msg.sender === 'contact' ? 'received' : 'sent';
+      return this.renderTemplate(template, {
+        type: type,
+        content: msg.content,
+        time: this.formatTime(msg.timestamp),
+        status: msg.sender !== 'contact' ? msg.status : null
+      });
+    }).join('');
+    
+    // Scroll al final
+    container.scrollTop = container.scrollHeight;
+  },
+  
+  // Configurar input de mensaje
+  setupMessageInput: function() {
+    const sendButton = document.getElementById('sendMessage');
+    if (sendButton) {
+      sendButton.addEventListener('click', () => this.sendMessage());
+    }
+  },
+  
+  // Enviar mensaje
+  sendMessage: function() {
+    const input = document.getElementById('messageInput');
+    const content = input.value.trim();
+    
+    if (!content || !this.currentConversation) return;
+    
+    // Limpiar input
+    input.value = '';
+    this.autoResizeTextarea(input);
+    
+    // Agregar mensaje temporalmente a la UI
+    this.addMessageToUI(content, 'sent', 'sending');
+    
+    // Enviar mensaje
+    google.script.run
+      .withSuccessHandler((result) => {
+        if (result.success) {
+          this.updateMessageStatus(result.messageId, 'sent');
+        } else {
+          this.showError('Error al enviar mensaje: ' + result.error);
+        }
+      })
+      .withFailureHandler((error) => {
+        console.error('Error al enviar mensaje:', error);
+        this.showError('Error al enviar mensaje');
+      })
+      .sendMessage(this.currentConversation, content);
+  },
+  
+  // Agregar mensaje a la UI
+  addMessageToUI: function(content, type, status) {
+    const container = document.getElementById('messagesContainer');
+    const template = document.getElementById('messageTemplate').innerHTML;
+    
+    const messageHtml = this.renderTemplate(template, {
+      type: type,
+      content: content,
+      time: this.formatTime(new Date()),
+      status: status
+    });
+    
+    container.insertAdjacentHTML('beforeend', messageHtml);
+    container.scrollTop = container.scrollHeight;
+  },
+  
+  // Actualizar estado de mensaje
+  updateMessageStatus: function(messageId, status) {
+    // Implementar actualización de estado en UI
+    console.log('Actualizando estado de mensaje:', messageId, status);
+  },
+  
+  // Auto-resize textarea
+  autoResizeTextarea: function(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+  },
+  
+  // Configurar búsqueda
+  setupSearch: function() {
+    const searchInput = document.getElementById('searchChats');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        this.filterConversations(e.target.value);
+      });
+    }
+  },
+  
+  // Filtrar conversaciones
+  filterConversations: function(query) {
+    const filtered = this.conversations.filter(conv => 
+      conv.name.toLowerCase().includes(query.toLowerCase()) ||
+      conv.lastMessage.toLowerCase().includes(query.toLowerCase())
+    );
+    this.renderConversations(filtered);
+  },
+  
+  // Configurar filtros
+  setupFilters: function() {
+    document.querySelectorAll('[data-filter]').forEach(filter => {
+      filter.addEventListener('click', (e) => {
+        e.preventDefault();
+        const filterType = e.currentTarget.dataset.filter;
+        this.applyFilter(filterType);
+      });
+    });
+    
+    const clearFilters = document.getElementById('clearFilters');
+    if (clearFilters) {
+      clearFilters.addEventListener('click', () => {
+        this.renderConversations(this.conversations);
+      });
+    }
+  },
+  
+  // Aplicar filtro
+  applyFilter: function(filterType) {
+    let filtered = this.conversations;
+    
+    switch (filterType) {
+      case 'whatsapp':
+      case 'sms':
+      case 'email':
+        filtered = this.conversations.filter(conv => conv.channel === filterType);
+        break;
+      case 'unread':
+        filtered = this.conversations.filter(conv => conv.unreadCount > 0);
+        break;
+      case 'assigned':
+        filtered = this.conversations.filter(conv => conv.assignedAgent);
+        break;
+    }
+    
+    this.renderConversations(filtered);
+  },
+  
+  // Cargar plantillas
+  loadTemplates: function() {
+    const template = document.getElementById('templatesPageTemplate').innerHTML;
+    document.getElementById('pageContainer').innerHTML = template;
+    
+    google.script.run
+      .withSuccessHandler((templates) => {
+        this.templates = templates;
+        this.renderTemplates(templates);
+        this.showLoading(false);
+      })
+      .withFailureHandler((error) => {
+        console.error('Error al cargar plantillas:', error);
+        this.showError('Error al cargar plantillas');
+        this.showLoading(false);
+      })
+      .getMessageTemplates();
+  },
+  
+  // Renderizar plantillas
+  renderTemplates: function(templates) {
+    const grid = document.getElementById('templatesGrid');
+    const template = document.getElementById('templateCardTemplate').innerHTML;
+    
+    if (templates.length === 0) {
+      grid.innerHTML = `
+        <div class="col-12">
+          <div class="empty-state">
+            <i class="fas fa-file-text"></i>
+            <h5>No hay plantillas</h5>
+            <p>Crea tu primera plantilla para agilizar las respuestas</p>
+          </div>
+        </div>
+      `;
+      return;
+    }
+    
+    grid.innerHTML = templates.map(tpl => {
+      return this.renderTemplate(template, {
+        id: tpl.id,
+        name: tpl.name,
+        content: tpl.content,
+        channel: tpl.channel,
+        channelIcon: this.getChannelIcon(tpl.channel),
+        channelName: this.getChannelName(tpl.channel),
+        variables: tpl.variables
+      });
+    }).join('');
+  },
+  
+  // Cargar plantillas en dropdown
+  loadTemplatesDropdown: function() {
+    const dropdown = document.getElementById('templatesDropdown');
+    if (!dropdown) return;
+    
+    google.script.run
+      .withSuccessHandler((templates) => {
+        dropdown.innerHTML = templates.map(tpl => 
+          `<li><a class="dropdown-item" href="#" onclick="useTemplate('${tpl.id}'); return false;">${tpl.name}</a></li>`
+        ).join('');
+      })
+      .withFailureHandler((error) => {
+        console.error('Error al cargar plantillas:', error);
+      })
+      .getMessageTemplates();
+  },
+  
+  // Cargar canales
+  loadChannels: function() {
+    const template = document.getElementById('channelsPageTemplate').innerHTML;
+    document.getElementById('pageContainer').innerHTML = template;
+    this.showLoading(false);
+  },
+  
+  // Cargar automatizaciones
+  loadAutomations: function() {
+    const template = document.getElementById('automationsPageTemplate').innerHTML;
+    document.getElementById('pageContainer').innerHTML = template;
+    this.showLoading(false);
+  },
+  
+  // Cargar informes
+  loadReports: function() {
+    document.getElementById('pageContainer').innerHTML = `
+      <div class="container-fluid p-4">
+        <h2>Informes</h2>
+        <div class="row">
+          <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card">
+              <div class="card-body text-center">
+                <i class="fas fa-comments fa-2x text-primary mb-3"></i>
+                <h5 class="card-title">Conversaciones</h5>
+                <h3 class="text-primary" id="totalConversations">-</h3>
+                <p class="text-muted">Total este mes</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card">
+              <div class="card-body text-center">
+                <i class="fas fa-paper-plane fa-2x text-success mb-3"></i>
+                <h5 class="card-title">Mensajes enviados</h5>
+                <h3 class="text-success" id="totalMessages">-</h3>
+                <p class="text-muted">Total este mes</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card">
+              <div class="card-body text-center">
+                <i class="fas fa-clock fa-2x text-warning mb-3"></i>
+                <h5 class="card-title">Tiempo respuesta</h5>
+                <h3 class="text-warning" id="avgResponseTime">-</h3>
+                <p class="text-muted">Promedio</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card">
+              <div class="card-body text-center">
+                <i class="fas fa-users fa-2x text-info mb-3"></i>
+                <h5 class="card-title">Agentes activos</h5>
+                <h3 class="text-info" id="activeAgents">-</h3>
+                <p class="text-muted">En línea ahora</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    this.showLoading(false);
+  },
+  
+  // Cargar integraciones
+  loadIntegrations: function() {
+    const template = document.getElementById('integrationsPageTemplate').innerHTML;
+    document.getElementById('pageContainer').innerHTML = template;
+    this.showLoading(false);
+  },
+  
+  // Utilidades
+  renderTemplate: function(template, data) {
+    return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+      return data[key] || '';
+    });
+  },
+  
+  getInitials: function(name) {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+  },
+  
+  getChannelIcon: function(channel) {
+    const icons = {
+      'whatsapp': 'fab fa-whatsapp',
+      'sms': 'fas fa-sms',
+      'email': 'fas fa-envelope'
+    };
+    return icons[channel] || 'fas fa-comment';
+  },
+  
+  getChannelName: function(channel) {
+    const names = {
+      'whatsapp': 'WhatsApp',
+      'sms': 'SMS',
+      'email': 'Email'
+    };
+    return names[channel] || channel;
+  },
+  
+  formatTime: function(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+    
+    if (diff < 60000) return 'Ahora';
+    if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
+    if (diff < 86400000) return Math.floor(diff / 3600000) + 'h';
+    return date.toLocaleDateString();
+  },
+  
+  showError: function(message) {
+    // Implementar notificación de error
+    console.error(message);
+    alert(message); // Temporal
+  },
+  
+  showSuccess: function(message) {
+    // Implementar notificación de éxito
+    console.log(message);
+  }
+};
+
+// Funciones globales para los modales y acciones
+
+// Plantillas
+function saveTemplate() {
+  const form = document.getElementById('templateForm');
+  const formData = new FormData(form);
+  
+  const templateData = {
+    name: formData.get('templateName'),
+    channel: formData.get('templateChannel'),
+    content: formData.get('templateContent'),
+    variables: Array.from(document.querySelectorAll('[name="variable"]')).map(input => input.value)
+  };
+  
+  google.script.run
+    .withSuccessHandler((result) => {
+      if (result.success) {
+        App.showSuccess('Plantilla guardada correctamente');
+        bootstrap.Modal.getInstance(document.getElementById('templateModal')).hide();
+        App.loadTemplates();
+      } else {
+        App.showError('Error al guardar plantilla: ' + result.error);
+      }
+    })
+    .withFailureHandler((error) => {
+      App.showError('Error al guardar plantilla: ' + error);
+    })
+    .saveTemplate(templateData);
+}
+
+function addVariable() {
+  const container = document.getElementById('variablesContainer');
+  const count = container.children.length + 1;
+  
+  const html = `
+    <div class="input-group mb-2">
+      <span class="input-group-text">{{${count}}}:</span>
+      <input type="text" class="form-control" placeholder="variable${count}" name="variable">
+      <button class="btn btn-outline-danger" type="button" onclick="removeVariable(this)">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  `;
+  
+  container.insertAdjacentHTML('beforeend', html);
+}
+
+function removeVariable(button) {
+  button.closest('.input-group').remove();
+}
+
+function viewTemplate(id) {
+  // Implementar vista de plantilla
+  console.log('Ver plantilla:', id);
+}
+
+function editTemplate(id) {
+  // Implementar edición de plantilla
+  console.log('Editar plantilla:', id);
+}
+
+function duplicateTemplate(id) {
+  // Implementar duplicación de plantilla
+  console.log('Duplicar plantilla:', id);
+}
+
+function deleteTemplate(id) {
+  if (confirm('¿Estás seguro de que quieres eliminar esta plantilla?')) {
+    // Implementar eliminación
+    console.log('Eliminar plantilla:', id);
+  }
+}
+
+function useTemplate(id) {
+  const template = App.templates.find(t => t.id === id);
+  if (template) {
+    const input = document.getElementById('messageInput');
+    if (input) {
+      input.value = template.content;
+      App.autoResizeTextarea(input);
+    }
+  }
+}
+
+// Canales
+function selectChannelType(type) {
+  document.getElementById('channelTypeSelection').style.display = 'none';
+  document.getElementById('channelConfiguration').style.display = 'block';
+  document.getElementById('channelModalFooter').style.display = 'none';
+  
+  // Mostrar configuración específica
+  document.querySelectorAll('[id$="Config"]').forEach(config => {
+    config.style.display = 'none';
+  });
+  
+  const configElement = document.getElementById(type + 'Config');
+  if (configElement) {
+    configElement.style.display = 'block';
+  }
+}
+
+function backToChannelSelection() {
+  document.getElementById('channelTypeSelection').style.display = 'block';
+  document.getElementById('channelConfiguration').style.display = 'none';
+  document.getElementById('channelModalFooter').style.display = 'block';
+}
+
+function saveChannel() {
+  // Implementar guardado de canal
+  console.log('Guardar canal');
+}
+
+// Automatizaciones
+let currentAutomationStep = 1;
+
+function nextAutomationStep() {
+  if (currentAutomationStep < 3) {
+    document.getElementById(`automationStep${currentAutomationStep}`).style.display = 'none';
+    currentAutomationStep++;
+    document.getElementById(`automationStep${currentAutomationStep}`).style.display = 'block';
+    
+    if (currentAutomationStep === 2) {
+      document.getElementById('prevStepBtn').style.display = 'inline-block';
+    }
+    
+    if (currentAutomationStep === 3) {
+      document.getElementById('nextStepBtn').style.display = 'none';
+      document.getElementById('saveAutomationBtn').style.display = 'inline-block';
+      updateAutomationSummary();
+    }
+  }
+}
+
+function prevAutomationStep() {
+  if (currentAutomationStep > 1) {
+    document.getElementById(`automationStep${currentAutomationStep}`).style.display = 'none';
+    currentAutomationStep--;
+    document.getElementById(`automationStep${currentAutomationStep}`).style.display = 'block';
+    
+    if (currentAutomationStep === 1) {
+      document.getElementById('prevStepBtn').style.display = 'none';
+    }
+    
+    if (currentAutomationStep === 2) {
+      document.getElementById('nextStepBtn').style.display = 'inline-block';
+      document.getElementById('saveAutomationBtn').style.display = 'none';
+    }
+  }
+}
+
+function updateAutomationSummary() {
+  const name = document.getElementById('automationName').value;
+  const trigger = document.getElementById('automationTrigger').value;
+  
+  document.getElementById('summaryName').textContent = name || '-';
+  document.getElementById('summaryTrigger').textContent = trigger || '-';
+}
+
+function saveAutomation() {
+  // Implementar guardado de automatización
+  console.log('Guardar automatización');
+}
+
+function showTriggerOptions() {
+  const trigger = document.getElementById('automationTrigger').value;
+  const optionsContainer = document.getElementById('triggerOptions');
+  
+  // Ocultar todas las opciones
+  document.querySelectorAll('[id$="Options"]').forEach(option => {
+    option.style.display = 'none';
+  });
+  
+  if (trigger) {
+    optionsContainer.style.display = 'block';
+    
+    if (trigger === 'keyword') {
+      document.getElementById('keywordOptions').style.display = 'block';
+    } else if (trigger === 'no-response') {
+      document.getElementById('timeOptions').style.display = 'block';
+    } else if (trigger === 'tag-added') {
+      document.getElementById('tagOptions').style.display = 'block';
+    }
+  } else {
+    optionsContainer.style.display = 'none';
+  }
+}
+
+// Integraciones
+function saveIntegration() {
+  const activeTab = document.querySelector('#integrationTabs .nav-link.active').getAttribute('href');
+  
+  if (activeTab === '#odooIntegration') {
+    saveOdooIntegration();
+  } else if (activeTab === '#wazzupIntegration') {
+    saveWazzupIntegration();
+  }
+}
+
+function saveOdooIntegration() {
+  const formData = {
+    url: document.getElementById('odooUrl').value,
+    db: document.getElementById('odooDb').value,
+    username: document.getElementById('odooUsername').value,
+    password: document.getElementById('odooPassword').value
+  };
+  
+  google.script.run
+    .withSuccessHandler((result) => {
+      if (result.success) {
+        App.showSuccess('Integración con Odoo configurada correctamente');
+        bootstrap.Modal.getInstance(document.getElementById('integrationModal')).hide();
+      } else {
+        App.showError('Error al configurar Odoo: ' + result.error);
+      }
+    })
+    .withFailureHandler((error) => {
+      App.showError('Error al configurar Odoo: ' + error);
+    })
+    .saveOdooConfiguration(formData);
+}
+
+function saveWazzupIntegration() {
+  const formData = {
+    apiKey: document.getElementById('wazzupApiKey').value,
+    channelId: document.getElementById('wazzupChannelId').value
+  };
+  
+  google.script.run
+    .withSuccessHandler((result) => {
+      if (result.success) {
+        App.showSuccess('Integración con Wazzup configurada correctamente');
+        bootstrap.Modal.getInstance(document.getElementById('integrationModal')).hide();
+      } else {
+        App.showError('Error al configurar Wazzup: ' + result.error);
+      }
+    })
+    .withFailureHandler((error) => {
+      App.showError('Error al configurar Wazzup: ' + error);
+    })
+    .saveWazzupConfiguration(formData);
+}
+
+function testOdooConnection() {
+  google.script.run
+    .withSuccessHandler((result) => {
+      if (result.success) {
+        App.showSuccess('Conexión con Odoo exitosa');
+      } else {
+        App.showError('Error de conexión: ' + result.error);
+      }
+    })
+    .withFailureHandler((error) => {
+      App.showError('Error al probar conexión: ' + error);
+    })
+    .testOdooConnection();
+}
+
+function testWazzupConnection() {
+  google.script.run
+    .withSuccessHandler((result) => {
+      if (result.success) {
+        App.showSuccess('Conexión con Wazzup exitosa');
+      } else {
+        App.showError('Error de conexión: ' + result.error);
+      }
+    })
+    .withFailureHandler((error) => {
+      App.showError('Error al probar conexión: ' + error);
+    })
+    .testWazzupConnection();
+}
+
+// Transferencias
+function showTransferHistory() {
+  if (!App.currentConversation) return;
+  
+  google.script.run
+    .withSuccessHandler((transfers) => {
+      const modal = document.getElementById('transferHistoryModal');
+      const content = document.getElementById('transferHistoryContent');
+      const template = document.getElementById('transferHistoryTemplate').innerHTML;
+      
+      content.innerHTML = App.renderTemplate(template, { transfers: transfers });
+      
+      const transferModal = new bootstrap.Modal(modal);
+      transferModal.show();
+    })
+    .withFailureHandler((error) => {
+      App.showError('Error al cargar historial: ' + error);
+    })
+    .getTransferHistory(App.currentConversation);
+}
+
+function executeTransfer() {
+  const reason = document.getElementById('transferReason').value;
+  const agentId = document.getElementById('transferAgent').value;
+  const notes = document.getElementById('transferNotes').value;
+  
+  if (!reason || !agentId) {
+    App.showError('Por favor completa todos los campos requeridos');
+    return;
+  }
+  
+  google.script.run
+    .withSuccessHandler((result) => {
+      if (result.success) {
+        App.showSuccess('Conversación transferida correctamente');
+        bootstrap.Modal.getInstance(document.getElementById('transferModal')).hide();
+      } else {
+        App.showError('Error al transferir: ' + result.error);
+      }
+    })
+    .withFailureHandler((error) => {
+      App.showError('Error al transferir: ' + error);
+    })
+    .transferConversation(App.currentConversation, null, agentId, reason, notes);
+}
+
+// Acciones de Odoo
+function syncWithOdoo() {
+  if (!App.currentConversation) return;
+  
+  const conversation = App.conversations.find(c => c.id === App.currentConversation);
+  if (!conversation) return;
+  
+  google.script.run
+    .withSuccessHandler((result) => {
+      if (result.success) {
+        App.showSuccess('Contacto sincronizado con Odoo');
+      } else {
+        App.showError('Error al sincronizar: ' + result.error);
+      }
+    })
+    .withFailureHandler((error) => {
+      App.showError('Error al sincronizar: ' + error);
+    })
+    .syncContactWithOdoo({
+      conversationId: conversation.id,
+      name: conversation.name,
+      phone: conversation.phone,
+      email: conversation.email,
+      lastMessage: conversation.lastMessage
+    });
+}
+
+function createOdooLead() {
+  if (!App.currentConversation) return;
+  
+  google.script.run
+    .withSuccessHandler((result) => {
+      if (result.success) {
+        App.showSuccess('Oportunidad creada en Odoo');
+      } else {
+        App.showError('Error al crear oportunidad: ' + result.error);
+      }
+    })
+    .withFailureHandler((error) => {
+      App.showError('Error al crear oportunidad: ' + error);
+    })
+    .createOdooLead(App.currentConversation);
+}
+
+function createOdooTask() {
+  if (!App.currentConversation) return;
+  
+  google.script.run
+    .withSuccessHandler((result) => {
+      if (result.success) {
+        App.showSuccess('Tarea creada en Odoo');
+      } else {
+        App.showError('Error al crear tarea: ' + result.error);
+      }
+    })
+    .withFailureHandler((error) => {
+      App.showError('Error al crear tarea: ' + error);
+    })
+    .createOdooTask(App.currentConversation);
+}
+
+// Configuración inicial
+function saveInitialSetup() {
+  const spreadsheetId = document.getElementById('spreadsheetId').value;
+  
+  if (!spreadsheetId) {
+    App.showError('Por favor ingresa el ID del spreadsheet');
+    return;
+  }
+  
+  google.script.run
+    .withSuccessHandler((result) => {
+      if (result.success) {
+        App.showSuccess('Configuración guardada correctamente');
+        bootstrap.Modal.getInstance(document.getElementById('setupModal')).hide();
+        App.loadPage('inbox');
+      } else {
+        App.showError('Error al guardar configuración: ' + result.error);
+      }
+    })
+    .withFailureHandler((error) => {
+      App.showError('Error al guardar configuración: ' + error);
+    })
+    .saveInitialConfiguration(spreadsheetId);
+}
+
+function createSampleSpreadsheet() {
+  google.script.run
+    .withSuccessHandler((result) => {
+      if (result.success) {
+        document.getElementById('spreadsheetId').value = result.spreadsheetId;
+        App.showSuccess('Spreadsheet creado correctamente');
+      } else {
+        App.showError('Error al crear spreadsheet: ' + result.error);
+      }
+    })
+    .withFailureHandler((error) => {
+      App.showError('Error al crear spreadsheet: ' + error);
+    })
+    .createSampleSpreadsheet();
+}
+
+function getConfiguration() {
+  return {
+    SPREADSHEET_ID: CONFIG.SPREADSHEET_ID,
+    ODOO_URL: CONFIG.ODOO_URL,
+    WAZZUP_API_KEY: CONFIG.WAZZUP_API_KEY
+  };
+}
+</script>
